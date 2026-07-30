@@ -19,11 +19,15 @@ async function bootstrap(): Promise<void> {
   const prefix = config.get('API_PREFIX', { infer: true });
   // Hosts gerenciados (Hostinger etc.) injetam PORT; API_PORT vale localmente.
   const port = Number(process.env.PORT ?? config.get('API_PORT', { infer: true }));
-  const origins = config
-    .get('CORS_ORIGINS', { infer: true })
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  // O front de producao e sempre permitido; CORS_ORIGINS adiciona outras origens.
+  const origins = [
+    'https://lightsalmon-sheep-614100.hostingersite.com',
+    ...config
+      .get('CORS_ORIGINS', { infer: true })
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ];
 
   app.use(helmet());
   app.use(compression());
