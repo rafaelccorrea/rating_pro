@@ -87,6 +87,24 @@ enum RiskLevel {
   @@map("risk_level")
 }
 
+enum PaymentMethod {
+  pix
+  card
+  boleto
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  cancelled
+
+  @@map("payment_status")
+}
+
 enum LeadStatus {
   new
   contacted
@@ -189,9 +207,11 @@ model RatingOrder {
   reseller  Profile         @relation("OrderReseller", fields: [resellerId], references: [id], onDelete: Restrict)
   client    Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   assignee  Profile?        @relation("OrderAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
-  rating    Rating?
-  documents OrderDocument[]
-  events    OrderEvent[]
+  rating      Rating?
+  documents   OrderDocument[]
+  events      OrderEvent[]
+  application OrderApplication?
+  payments    OrderPayment[]
 
   @@index([resellerId, createdAt(sort: Desc)], map: "rating_orders_reseller_idx")
   @@index([status, createdAt(sort: Desc)], map: "rating_orders_status_idx")
@@ -227,11 +247,53 @@ model Rating {
   @@map("ratings")
 }
 
+/// Solicitante do fluxo de contratacao em 4 etapas.
+///
+/// `serasaPasswordEnc` e credencial de terceiro cifrada (AES-256-GCM). NUNCA
+/// devolva pela API nem escreva em log — leia so no momento da consulta.
+model OrderApplication {
+  orderId           String   @id @map("order_id") @db.Uuid
+  maritalStatus     String   @map("marital_status")
+  education         String
+  occupation        String
+  serasaPasswordEnc String   @map("serasa_password_enc")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order RatingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_applications")
+}
+
+/// Cobranca de um pedido. Indice parcial no banco garante uma so em aberto.
+model OrderPayment {
+  id        String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  orderId   String        @map("order_id") @db.Uuid
+  method    PaymentMethod
+  status    PaymentStatus @default(pending)
+  amount    Decimal       @db.Decimal(12, 2)
+  /// Identificador no provedor (txid do PIX, id da transacao do cartao).
+  reference String?
+  note      String?
+  /// Preenchido pelo trigger quando o status vira `paid`.
+  paidAt    DateTime?     @map("paid_at") @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order RatingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt(sort: Desc)], map: "order_payments_order_idx")
+  @@index([status, createdAt(sort: Desc)], map: "order_payments_status_idx")
+  @@map("order_payments")
+}
+
 /// Anexo enviado junto ao pedido. Caminho: "<orderId>/<arquivo>".
 model OrderDocument {
   id          String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   orderId     String   @map("order_id") @db.Uuid
   storagePath String   @unique @map("storage_path")
+  /// Item do checklist que este arquivo responde (ver `documentSlots`).
+  slot        String?
   fileName    String   @map("file_name")
   mimeType    String   @map("mime_type")
   sizeBytes   BigInt   @map("size_bytes")

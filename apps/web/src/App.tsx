@@ -34,6 +34,12 @@ const NewOrderPage = lazy(() =>
 const OrderDetailPage = lazy(() =>
   import('@/features/panel/OrderPages').then((m) => ({ default: m.OrderDetailPage })),
 );
+const RatingPFPage = lazy(() =>
+  import('@/features/rating/RatingWizard').then((m) => ({ default: m.RatingPFPage })),
+);
+const RatingPJPage = lazy(() =>
+  import('@/features/rating/RatingWizard').then((m) => ({ default: m.RatingPJPage })),
+);
 const QueuePage = lazy(() =>
   import('@/features/master/pages').then((m) => ({ default: m.QueuePage })),
 );
@@ -65,6 +71,8 @@ export function App() {
             <Route path="/painel/pedidos" element={<OrdersPage />} />
             <Route path="/painel/pedidos/novo" element={<NewOrderPage />} />
             <Route path="/painel/pedidos/:id" element={<OrderDetailPage />} />
+            <Route path="/painel/rating/pf" element={<RatingPFPage />} />
+            <Route path="/painel/rating/pj" element={<RatingPJPage />} />
             <Route path="/painel/clientes" element={<ClientsPage />} />
             <Route path="/painel/perfil" element={<ProfilePage />} />
 

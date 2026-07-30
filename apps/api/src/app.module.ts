@@ -14,6 +14,7 @@ import { LeadsModule } from './leads/leads.module';
 import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfilesModule } from './profiles/profiles.module';
+import { RatingRequestsModule } from './rating-requests/rating-requests.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { ReportsModule } from './reports/reports.module';
 import { TrackingModule } from './tracking/tracking.module';
@@ -48,6 +49,7 @@ import { TrackingModule } from './tracking/tracking.module';
     ClientsModule,
     OrdersModule,
     RatingsModule,
+    RatingRequestsModule,
     ReportsModule,
     LeadsModule,
     DashboardModule,

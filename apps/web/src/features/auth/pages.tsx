@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { signInSchema, signUpSchema } from '@rating-pro/shared';
-import { Logo, LogoMark } from '@/components/Logo';
+import { Logo } from '@/components/Logo';
 import { Button, Input, PasswordInput } from '@/components/ui';
 import { env, whatsappLink } from '@/config/env';
 import { useTheme } from '@/hooks/useTheme';
@@ -74,9 +74,8 @@ function AuthLayout({
           aria-hidden
         />
 
-        <Link to="/" className="relative flex items-center gap-2.5 text-white">
-          <LogoMark className="size-10" />
-          <span className="text-lg font-semibold tracking-tight">{env.brandName}</span>
+        <Link to="/" className="relative flex items-center text-white">
+          <Logo onDark markClassName="h-10" />
         </Link>
 
         <div className="relative mt-auto">

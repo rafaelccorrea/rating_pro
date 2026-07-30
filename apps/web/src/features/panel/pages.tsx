@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
+  Building2,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
@@ -12,6 +13,7 @@ import {
   Gauge,
   Plus,
   Search,
+  User,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -178,9 +180,19 @@ export function DashboardPage() {
         }
         action={
           !isMaster && (
-            <ButtonLink to="/painel/pedidos/novo" icon={<Plus className="size-4" aria-hidden />}>
-              Novo pedido
-            </ButtonLink>
+            // Os dois produtos lado a lado: o tipo da pessoa muda o formulário
+            // inteiro, então escolher aqui evita um passo de "PF ou PJ?" depois.
+            <div className="flex flex-wrap gap-2">
+              <ButtonLink to="/painel/rating/pf" icon={<User className="size-4" aria-hidden />}>
+                Rating PF
+              </ButtonLink>
+              <ButtonLink
+                to="/painel/rating/pj"
+                icon={<Building2 className="size-4" aria-hidden />}
+              >
+                Rating PJ
+              </ButtonLink>
+            </div>
           )
         }
       />

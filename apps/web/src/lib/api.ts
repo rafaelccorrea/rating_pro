@@ -49,14 +49,17 @@ async function request(path: string, options: RequestOptions): Promise<Response>
   const { method = 'GET', body, query, auth = true } = options;
 
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // FormData define o próprio Content-Type, com o boundary; defini-lo aqui
+  // quebraria o parse do multipart no servidor.
+  const isForm = body instanceof FormData;
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   if (auth) Object.assign(headers, authHeader());
 
   try {
     return await fetch(buildUrl(path, query), {
       method,
       headers,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: isForm ? body : JSON.stringify(body) } : {}),
     });
   } catch {
     // Falha de rede não tem statusCode; 0 sinaliza "não chegou no servidor".
@@ -118,4 +121,7 @@ export const api = {
   /** Para rotas públicas: não anexa Authorization. */
   publicPost: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: 'POST', body, auth: false }),
+  /** Upload multipart (anexos do pedido). */
+  upload: <T>(path: string, form: FormData) => apiFetch<T>(path, { method: 'POST', body: form }),
+  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };

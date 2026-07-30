@@ -38,6 +38,29 @@ export const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().trim().default('12h'),
 
   BRAND_NAME: z.string().trim().min(1).default('Rating Pro'),
+
+  /** Onde os anexos dos pedidos sao gravados. Precisa ser volume persistente. */
+  UPLOADS_DIR: z.string().trim().min(1).default('./uploads'),
+
+  /**
+   * Chave de 32 bytes em base64 para cifrar credenciais de terceiros (senha do
+   * Serasa) em AES-256-GCM. Perder a chave torna os dados ilegiveis — guarde
+   * junto do resto dos segredos e nao rotacione sem plano de re-cifra.
+   * Gere com: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   */
+  CREDENTIALS_KEY: z
+    .string()
+    .trim()
+    .refine((value) => Buffer.from(value, 'base64').length === 32, {
+      message: 'CREDENTIALS_KEY precisa ser 32 bytes em base64',
+    }),
+
+  /** Preco de tabela da contratacao direta, em reais. */
+  RATING_PRICE_PF: z.coerce.number().nonnegative().default(0),
+  RATING_PRICE_PJ: z.coerce.number().nonnegative().default(0),
+
+  /** Chave PIX mostrada na etapa de pagamento. Vazio esconde a instrucao. */
+  PIX_KEY: z.string().trim().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;
