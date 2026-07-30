@@ -11,8 +11,12 @@ function readEnv(value: string | undefined, fallback: string): string {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+const defaultApiUrl = import.meta.env.PROD
+  ? 'https://mistyrose-lion-706980.hostingersite.com/api'
+  : 'http://localhost:3333/api';
+
 export const env = {
-  apiUrl: readEnv(import.meta.env.VITE_API_URL, 'http://localhost:3333/api').replace(/\/+$/, ''),
+  apiUrl: readEnv(import.meta.env.VITE_API_URL, defaultApiUrl).replace(/\/+$/, ''),
   brandName: readEnv(import.meta.env.VITE_BRAND_NAME, 'Rating Pro'),
   brandShort: readEnv(import.meta.env.VITE_BRAND_SHORT, 'RatingPro'),
   whatsappNumber: readEnv(import.meta.env.VITE_WHATSAPP_NUMBER, ''),
