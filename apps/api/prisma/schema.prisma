@@ -1,0 +1,287 @@
+// ===========================================================================
+// Prisma — camada de acesso a dados da API.
+//
+// IMPORTANTE sobre RLS:
+// O Prisma conecta como `postgres`, que tem BYPASSRLS. As policies do banco
+// NAO se aplicam a estas queries. Elas continuam protegendo o acesso direto do
+// frontend via supabase-js (anon key). Na API, o isolamento por revendedor e
+// responsabilidade explicita da camada de servico — sempre filtre por
+// `resellerId` quando o usuario nao for master.
+//
+// Migrations: use SEMPRE `prisma migrate deploy`. Nao use `migrate dev` — ele
+// exige um shadow database, e nossas migrations dependem dos schemas `auth` e
+// `storage`, que so existem num banco Supabase de verdade.
+// ===========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooler em transaction mode (pgbouncer=true) para o runtime.
+  url       = env("DATABASE_URL")
+  // Conexao direta/session mode, usada por `prisma migrate deploy`.
+  directUrl = env("DIRECT_URL")
+}
+
+// --- Enums (espelham os tipos criados nas migrations) ----------------------
+
+enum UserRole {
+  master
+  reseller
+
+  @@map("user_role")
+}
+
+enum ProfileStatus {
+  pending
+  active
+  suspended
+
+  @@map("profile_status")
+}
+
+enum PersonType {
+  pf
+  pj
+
+  @@map("person_type")
+}
+
+enum OrderStatus {
+  draft
+  submitted
+  in_analysis
+  pending_doc
+  approved
+  delivered
+  rejected
+  cancelled
+
+  @@map("order_status")
+}
+
+enum RatingGrade {
+  AAA
+  AA
+  A
+  BBB
+  BB
+  B
+  CCC
+  CC
+  C
+  D
+
+  @@map("rating_grade")
+}
+
+enum RiskLevel {
+  minimo
+  baixo
+  moderado
+  alto
+  critico
+
+  @@map("risk_level")
+}
+
+enum LeadStatus {
+  new
+  contacted
+  qualified
+  converted
+  lost
+
+  @@map("lead_status")
+}
+
+// --- Modelos ---------------------------------------------------------------
+
+/// 1:1 com auth.users. A linha nasce pelo trigger `on_auth_user_created`.
+model Profile {
+  id             String        @id @db.Uuid
+  role           UserRole      @default(reseller)
+  status         ProfileStatus @default(pending)
+  fullName       String        @map("full_name")
+  email          String        @unique
+  phone          String?
+  document       String?
+  companyName    String?       @map("company_name")
+  city           String?
+  state          String?       @db.Char(2)
+  /// Fracao (0..1) do valor da venda que fica com o revendedor.
+  commissionRate Decimal       @default(0.3000) @map("commission_rate") @db.Decimal(5, 4)
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clients           Client[]
+  orders            RatingOrder[]   @relation("OrderReseller")
+  assignedOrders    RatingOrder[]   @relation("OrderAssignee")
+  issuedRatings     Rating[]
+  uploadedDocuments OrderDocument[]
+  events            OrderEvent[]
+  ownedLeads        Lead[]
+
+  @@index([role, status], map: "profiles_role_status_idx")
+  @@index([createdAt(sort: Desc)], map: "profiles_created_at_idx")
+  @@map("profiles")
+}
+
+/// Cliente final (PF ou PJ) cadastrado por um revendedor.
+model Client {
+  id         String     @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  resellerId String     @map("reseller_id") @db.Uuid
+  personType PersonType @map("person_type")
+  /// Somente digitos: 11 (CPF) ou 14 (CNPJ).
+  document   String
+  name       String
+  email      String?
+  phone      String?
+  birthDate  DateTime?  @map("birth_date") @db.Date
+  city       String?
+  state      String?    @db.Char(2)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reseller Profile       @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  orders   RatingOrder[]
+
+  @@unique([resellerId, document], map: "clients_reseller_document_unique")
+  @@index([resellerId, createdAt(sort: Desc)], map: "clients_reseller_idx")
+  @@index([document], map: "clients_document_idx")
+  @@map("clients")
+}
+
+/// Pedido de rating aberto por um revendedor e processado pelos masters.
+model RatingOrder {
+  id     String      @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  /// Gerado pelo DEFAULT da coluna: RP-2026-000042.
+  code   String      @unique @default(dbgenerated("('RP-'::text || to_char(now(), 'YYYY'::text) || '-'::text || lpad((nextval('rating_order_code_seq'::regclass))::text, 6, '0'::text))"))
+  status OrderStatus @default(draft)
+
+  /// Token do link público de acompanhamento. Revogável sem tocar no id.
+  trackingToken String @unique @default(dbgenerated("extensions.gen_random_uuid()")) @map("tracking_token") @db.Uuid
+
+  resellerId String  @map("reseller_id") @db.Uuid
+  clientId   String  @map("client_id") @db.Uuid
+  assignedTo String? @map("assigned_to") @db.Uuid
+
+  saleAmount       Decimal @default(0) @map("sale_amount") @db.Decimal(12, 2)
+  /// Preenchido pelo trigger a partir de saleAmount * commissionRate.
+  commissionAmount Decimal @default(0) @map("commission_amount") @db.Decimal(12, 2)
+
+  /// Formulário de coleta PF ou PJ. Forma garantida por `intakeSchema` (zod) na
+  /// borda da API; o banco só valida coerência com o tipo do cliente, via trigger.
+  intake Json?
+
+  resellerNotes   String?   @map("reseller_notes")
+  /// Nunca exponha ao revendedor.
+  internalNotes   String?   @map("internal_notes")
+  rejectionReason String?   @map("rejection_reason")
+  submittedAt     DateTime? @map("submitted_at") @db.Timestamptz(6)
+  deliveredAt     DateTime? @map("delivered_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reseller  Profile         @relation("OrderReseller", fields: [resellerId], references: [id], onDelete: Restrict)
+  client    Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  assignee  Profile?        @relation("OrderAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  rating    Rating?
+  documents OrderDocument[]
+  events    OrderEvent[]
+
+  @@index([resellerId, createdAt(sort: Desc)], map: "rating_orders_reseller_idx")
+  @@index([status, createdAt(sort: Desc)], map: "rating_orders_status_idx")
+  @@index([clientId], map: "rating_orders_client_idx")
+  @@map("rating_orders")
+}
+
+/// Rating emitido para um pedido. Score 0-1000.
+model Rating {
+  id      String @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  orderId String @unique @map("order_id") @db.Uuid
+  score   Int
+  /// Derivados do score pelo trigger `ratings_fill_derived`; nao envie no create.
+  grade   RatingGrade @default(D)
+  risk    RiskLevel   @default(critico)
+
+  summary    String?
+  /// [{ label, weight, score }]
+  factors    Json     @default("[]")
+  validUntil DateTime @map("valid_until") @db.Date
+  issuedBy   String   @map("issued_by") @db.Uuid
+  issuedAt   DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+  /// Caminho no bucket `rating-reports`; nulo enquanto o PDF nao existe.
+  reportPath String?  @map("report_path")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order  RatingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issuer Profile     @relation(fields: [issuedBy], references: [id], onDelete: Restrict)
+
+  @@index([issuedBy, issuedAt(sort: Desc)], map: "ratings_issued_by_idx")
+  @@index([grade], map: "ratings_grade_idx")
+  @@map("ratings")
+}
+
+/// Anexo enviado junto ao pedido. Caminho: "<orderId>/<arquivo>".
+model OrderDocument {
+  id          String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  storagePath String   @unique @map("storage_path")
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  sizeBytes   BigInt   @map("size_bytes")
+  uploadedBy  String   @map("uploaded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order    RatingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  uploader Profile     @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt(sort: Desc)], map: "order_documents_order_idx")
+  @@index([uploadedBy], map: "order_documents_uploader_idx")
+  @@map("order_documents")
+}
+
+/// Trilha append-only. Escrita pelos triggers do banco; leia, nao insira.
+model OrderEvent {
+  id         String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  actorId    String?      @map("actor_id") @db.Uuid
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus? @map("to_status")
+  eventType  String       @map("event_type")
+  note       String?
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order RatingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor Profile?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt(sort: Desc)], map: "order_events_order_idx")
+  @@map("order_events")
+}
+
+/// Captura da landing page.
+model Lead {
+  id        String     @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  name      String
+  email     String
+  phone     String
+  company   String?
+  message   String?
+  source    String     @default("landing")
+  utm       Json       @default("{}")
+  status    LeadStatus @default(new)
+  ownerId   String?    @map("owner_id") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner Profile? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], map: "leads_status_idx")
+  @@index([createdAt(sort: Desc)], map: "leads_created_at_idx")
+  @@map("leads")
+}

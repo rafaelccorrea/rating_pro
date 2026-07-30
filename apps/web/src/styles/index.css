@@ -1,0 +1,215 @@
+@import 'tailwindcss';
+
+/*
+ * O tema é alternado pela classe `.dark` no <html> (aplicada pelo script inline
+ * do index.html, antes da primeira pintura). O default do Tailwind 4 é
+ * prefers-color-scheme, então precisamos redefinir a variante.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Marca: violeta profundo. Foge do azul corporativo genérico do setor. */
+  --color-brand-50: #f2f0ff;
+  --color-brand-100: #e7e3ff;
+  --color-brand-200: #d1caff;
+  --color-brand-300: #b3a5ff;
+  --color-brand-400: #9174ff;
+  --color-brand-500: #7546ff;
+  --color-brand-600: #6a27f7;
+  --color-brand-700: #5b1adb;
+  --color-brand-800: #4c17b0;
+  --color-brand-900: #3f168c;
+  --color-brand-950: #250a5f;
+
+  /* Acento: âmbar. Usado com parcimônia, só no que precisa de clique. */
+  --color-accent-300: #ffd27a;
+  --color-accent-400: #ffbc45;
+  --color-accent-500: #f5a524;
+  --color-accent-600: #d98510;
+
+  /* Tinta: cinzas frios com um toque de violeta, para casar com a marca. */
+  --color-ink-50: #f8f8fb;
+  --color-ink-100: #f1f0f6;
+  --color-ink-200: #e3e2ed;
+  --color-ink-300: #cbc9da;
+  --color-ink-400: #9b98b3;
+  --color-ink-500: #6f6c8a;
+  --color-ink-600: #514e69;
+  --color-ink-700: #3d3a52;
+  --color-ink-800: #272438;
+  --color-ink-900: #191627;
+  --color-ink-950: #0e0c15;
+
+  /* Faixas de risco — espelham `riskColor()` de @rating-pro/shared. */
+  --color-risk-minimo: #10b981;
+  --color-risk-baixo: #22c55e;
+  --color-risk-moderado: #eab308;
+  --color-risk-alto: #f97316;
+  --color-risk-critico: #ef4444;
+
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+
+  --radius-card: 1.25rem;
+
+  --shadow-glow: 0 0 0 1px rgb(117 70 255 / 0.18), 0 18px 50px -18px rgb(117 70 255 / 0.45);
+  --shadow-soft: 0 1px 2px rgb(14 12 21 / 0.04), 0 12px 32px -12px rgb(14 12 21 / 0.12);
+  --shadow-lift: 0 1px 2px rgb(14 12 21 / 0.05), 0 24px 60px -24px rgb(14 12 21 / 0.28);
+
+  /*
+   * Tipografia fluida: escala com a viewport em vez de pular em cada
+   * breakpoint. Evita headline gigante em telas médias e apertada em 360px.
+   */
+  --text-display: clamp(2.5rem, 1.4rem + 4.6vw, 4.75rem);
+  --text-display--line-height: 1.04;
+  --text-display--letter-spacing: -0.03em;
+
+  --text-headline: clamp(1.875rem, 1.3rem + 2.2vw, 2.75rem);
+  --text-headline--line-height: 1.12;
+  --text-headline--letter-spacing: -0.02em;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.4vw, 1.25rem);
+  --text-lead--line-height: 1.6;
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white text-ink-800 antialiased;
+    @apply dark:bg-ink-950 dark:text-ink-200;
+    font-family: var(--font-sans);
+  }
+
+  /* Foco visível e consistente: navegação por teclado é requisito, não extra. */
+  :focus-visible {
+    @apply outline-brand-500 outline-2 outline-offset-2;
+  }
+
+  ::selection {
+    @apply bg-brand-500/25;
+  }
+
+  /* O FAQ usa <details>; some com o triângulo nativo. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary {
+    list-style: none;
+  }
+}
+
+@layer components {
+  /*
+   * Seções entram com fade-up quando o IntersectionObserver marca data-visible.
+   * Sem JS (ou sem observer) o conteúdo já nasce visível — nunca some.
+   */
+  .reveal {
+    @apply opacity-100;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal:not([data-visible='true']) {
+      @apply translate-y-4 opacity-0;
+    }
+    .reveal {
+      transition:
+        opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
+}
+
+/*
+ * Duas larguras de conteúdo, não uma. `container-page` é a grade larga que
+ * aproveita telas grandes; `container-prose` limita bloco de texto corrido para
+ * a leitura não passar de ~70 caracteres por linha.
+ * A gutter cresce com a tela para o conteúdo não colar na borda em desktop.
+ */
+@utility container-page {
+  @apply mx-auto w-full max-w-[84rem] px-4 sm:px-6 lg:px-10 xl:px-14;
+}
+
+/*
+ * Largura de aplicação, para as telas logadas: quase de borda a borda, com
+ * gutter enxuta. Painel é ferramenta de trabalho — encolher a área útil para
+ * uma coluna de leitura só desperdiça tela. O teto de 120rem evita que em
+ * monitor ultrawide as pontas fiquem absurdamente distantes.
+ */
+@utility container-app {
+  @apply mx-auto w-full max-w-[120rem] px-4 sm:px-5 lg:px-6 xl:px-8;
+}
+
+@utility container-prose {
+  @apply mx-auto w-full max-w-3xl;
+}
+
+/* Malha de gradiente do topo, decorativa. */
+@utility bg-mesh {
+  background-image:
+    radial-gradient(60% 50% at 15% 0%, rgb(117 70 255 / 0.16), transparent 60%),
+    radial-gradient(50% 45% at 85% 10%, rgb(245 165 36 / 0.12), transparent 60%);
+}
+
+/* Borda em gradiente, feita com máscara para não precisar de wrapper duplo. */
+@utility border-gradient {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(140deg, var(--color-brand-400), transparent 45%, var(--color-accent-400));
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* Superfície de vidro para cards sobre o gradiente do hero. */
+@utility surface-glass {
+  @apply border border-white/60 bg-white/70 backdrop-blur-xl;
+  @apply dark:border-white/10 dark:bg-ink-900/60;
+}

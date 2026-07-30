@@ -1,0 +1,13 @@
+# Normaliza quebra de linha no repositorio (LF), independente do SO de quem clona.
+* text=auto eol=lf
+
+# Binarios: nao tocar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
+
+# Lockfile: diff gigante nao ajuda ninguem na revisao.
+pnpm-lock.yaml -diff linguist-generated=true

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0E0C15" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+    <title>Rating Pro — revenda rating de crédito e ganhe por laudo entregue</title>
+    <meta
+      name="description"
+      content="Plataforma de rating de crédito para correspondentes bancários, assessores e contadores. Você vende, nossa equipe analisa e entrega o laudo em PDF com score de 0 a 1000. Simule seus ganhos."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Rating Pro" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Rating Pro" />
+    <meta
+      property="og:title"
+      content="Rating Pro — revenda rating de crédito e ganhe por laudo entregue"
+    />
+    <meta
+      property="og:description"
+      content="Você vende, nossa equipe analisa e entrega o laudo em PDF com score de 0 a 1000. Simule seus ganhos na calculadora."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Rating Pro — revenda rating de crédito e ganhe por laudo entregue"
+    />
+    <meta
+      name="twitter:description"
+      content="Você vende, nossa equipe analisa e entrega o laudo em PDF com score de 0 a 1000."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Rating Pro",
+        "description": "Plataforma de rating de crédito white label para correspondentes bancários, assessores de crédito e contadores.",
+        "areaServed": "BR",
+        "knowsLanguage": "pt-BR"
+      }
+    </script>
+
+    <script>
+      // Aplica o tema antes da primeira pintura para nao piscar ao trocar.
+      // O padrao e CLARO: o dark mode so entra se a pessoa escolher no toggle.
+      // De proposito nao seguimos prefers-color-scheme, para o visitante que
+      // usa o sistema no escuro ainda receber a marca no tema claro.
+      (function () {
+        try {
+          // Chave versionada: a versao anterior gravava aqui o tema resolvido do
+          // SISTEMA, entao quem usa o SO no escuro ficou com 'dark' salvo sem
+          // nunca ter escolhido. Trocar a chave descarta essas preferencias
+          // herdadas e faz todos voltarem ao padrao claro.
+          localStorage.removeItem('rating-pro:theme');
+          var stored = localStorage.getItem('rating-pro:theme.v2');
+          var resolved = stored === 'dark' ? 'dark' : 'light';
+          var root = document.documentElement;
+          root.classList.toggle('dark', resolved === 'dark');
+          root.style.colorScheme = resolved;
+        } catch (e) {
+          /* localStorage bloqueado: segue no tema claro */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
