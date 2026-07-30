@@ -11,7 +11,7 @@
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:web": "pnpm --filter @rating-pro/web dev",
     "dev:api": "pnpm --filter @rating-pro/api dev",
-    "build": "pnpm --filter @rating-pro/shared build && pnpm --filter @rating-pro/api build && pnpm --filter @rating-pro/web build",
+    "build": "node scripts/build-all.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "db:start": "supabase start",
@@ -20,7 +20,7 @@
     "db:diff": "supabase db diff -f",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --local --schema public > packages/shared/src/database.types.ts",
-    "deploy:build": "pnpm build && node scripts/build-deploy.mjs"
+    "deploy:build": "node scripts/build-all.mjs && node scripts/build-deploy.mjs"
   },
   "devDependencies": {
     "supabase": "^2.110.0",
