@@ -17,7 +17,8 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
   const prefix = config.get('API_PREFIX', { infer: true });
-  const port = config.get('API_PORT', { infer: true });
+  // Hosts gerenciados (Hostinger etc.) injetam PORT; API_PORT vale localmente.
+  const port = Number(process.env.PORT ?? config.get('API_PORT', { infer: true }));
   const origins = config
     .get('CORS_ORIGINS', { infer: true })
     .split(',')
