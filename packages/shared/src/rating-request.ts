@@ -164,6 +164,13 @@ const applicantSchema = z.object({
 });
 
 const baseSchema = z.object({
+  /**
+   * Em nome de qual revendedor abrir o pedido. So master informa — o pedido
+   * precisa de um dono para o isolamento por carteira e para a comissao, e
+   * master nao tem carteira propria. Revendedor manda o campo vazio: o dono e
+   * ele mesmo, e aceitar outro valor aqui seria abrir pedido no nome alheio.
+   */
+  resellerId: z.string().uuid('Selecione o revendedor').optional(),
   email: z.string().trim().email('Email inválido').max(160),
   phone: phoneSchema,
   birthDate: brDateSchema,

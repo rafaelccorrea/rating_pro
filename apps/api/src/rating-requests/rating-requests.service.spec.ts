@@ -32,8 +32,14 @@ function makeService(overrides: {
   order?: { resellerId: string; status: OrderStatus; personType: 'pf' | 'pj' } | null;
   documents?: Array<{ slot: string | null }>;
   application?: { orderId: string } | null;
+  profile?: { id: string; role: string; status: string } | null;
 }) {
-  const { order = null, documents = [], application = { orderId: 'order-1' } } = overrides;
+  const {
+    order = null,
+    documents = [],
+    application = { orderId: 'order-1' },
+    profile = null,
+  } = overrides;
 
   const update = jest.fn().mockResolvedValue({
     id: 'order-1',
@@ -59,6 +65,7 @@ function makeService(overrides: {
     orderDocument: { findMany: jest.fn().mockResolvedValue(documents) },
     orderApplication: { findUnique: jest.fn().mockResolvedValue(application) },
     orderPayment: { findFirst: jest.fn().mockResolvedValue(null) },
+    profile: { findUnique: jest.fn().mockResolvedValue(profile) },
   } as unknown as PrismaService;
 
   const storage = {} as DocumentStorageService;
@@ -118,26 +125,46 @@ describe('RatingRequestsService.submit', () => {
   });
 });
 
+const baseInput = {
+  personType: 'pf',
+  name: 'Fulano',
+  document: '11144477735',
+  birthDate: '1990-01-01',
+  email: 'a@b.com',
+  phone: '11999999999',
+  applicant: {
+    maritalStatus: 'solteiro',
+    education: 'superior',
+    occupation: 'Analista',
+    serasaPassword: 'segredo',
+  },
+  paymentMethod: 'pix',
+} as const;
+
 describe('RatingRequestsService.create', () => {
-  it('não deixa master abrir contratação', async () => {
+  it('exige que o master diga em nome de qual revendedor', async () => {
     const { service } = makeService({});
 
+    await expect(service.create(master, { ...baseInput })).rejects.toThrow(
+      /em nome de qual revendedor/,
+    );
+  });
+
+  it('recusa revendedor inexistente ou que não é revendedor', async () => {
+    const { service } = makeService({ profile: { id: 'x', role: 'master', status: 'active' } });
+
     await expect(
-      service.create(master, {
-        personType: 'pf',
-        name: 'Fulano',
-        document: '11144477735',
-        birthDate: '1990-01-01',
-        email: 'a@b.com',
-        phone: '11999999999',
-        applicant: {
-          maritalStatus: 'solteiro',
-          education: 'superior',
-          occupation: 'Analista',
-          serasaPassword: 'segredo',
-        },
-        paymentMethod: 'pix',
-      }),
-    ).rejects.toThrow(ForbiddenException);
+      service.create(master, { ...baseInput, resellerId: 'a3d0e0f1-0000-4000-8000-000000000000' }),
+    ).rejects.toThrow(/Revendedor não encontrado/);
+  });
+
+  it('recusa revendedor inativo', async () => {
+    const { service } = makeService({
+      profile: { id: 'x', role: 'reseller', status: 'suspended' },
+    });
+
+    await expect(
+      service.create(master, { ...baseInput, resellerId: 'a3d0e0f1-0000-4000-8000-000000000000' }),
+    ).rejects.toThrow(/inativo/);
   });
 });

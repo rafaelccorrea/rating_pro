@@ -179,21 +179,18 @@ export function DashboardPage() {
             : 'Acompanhe seus pedidos e suas comissões.'
         }
         action={
-          !isMaster && (
-            // Os dois produtos lado a lado: o tipo da pessoa muda o formulário
-            // inteiro, então escolher aqui evita um passo de "PF ou PJ?" depois.
-            <div className="flex flex-wrap gap-2">
-              <ButtonLink to="/painel/rating/pf" icon={<User className="size-4" aria-hidden />}>
-                Rating PF
-              </ButtonLink>
-              <ButtonLink
-                to="/painel/rating/pj"
-                icon={<Building2 className="size-4" aria-hidden />}
-              >
-                Rating PJ
-              </ButtonLink>
-            </div>
-          )
+          // Os dois produtos lado a lado: o tipo da pessoa muda o formulário
+          // inteiro, então escolher aqui evita um passo de "PF ou PJ?" depois.
+          // Master também vê — contrata informando em nome de qual revendedor,
+          // já que o pedido precisa de dono para a carteira e a comissão.
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink to="/painel/rating/pf" icon={<User className="size-4" aria-hidden />}>
+              Rating PF
+            </ButtonLink>
+            <ButtonLink to="/painel/rating/pj" icon={<Building2 className="size-4" aria-hidden />}>
+              Rating PJ
+            </ButtonLink>
+          </div>
         }
       />
 

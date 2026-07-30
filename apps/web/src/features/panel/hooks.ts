@@ -189,8 +189,13 @@ export function useUpdateMe() {
 
 // --- Master: revendedores ---------------------------------------------------
 
-export function useProfiles(filters: { status?: string; search?: string; page: number; pageSize: number }) {
+export function useProfiles(
+  filters: { status?: string; search?: string; page: number; pageSize: number },
+  /** A rota é só de master; telas de revendedor passam `false` para não chamar. */
+  enabled = true,
+) {
   return useQuery({
+    enabled,
     queryKey: queryKeys.profiles(filters),
     queryFn: () =>
       api.get<Paginated<ProfileRow>>('/profiles', {

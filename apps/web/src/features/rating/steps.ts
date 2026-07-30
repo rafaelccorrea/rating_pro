@@ -21,6 +21,7 @@ export function stepLabels(personType: PersonType): readonly string[] {
 
 /** Em qual etapa cada campo do schema da API aparece, para levar o erro lá. */
 export const FIELD_STEP: Record<string, number> = {
+  resellerId: 0,
   name: 0,
   document: 0,
   birthDate: 0,

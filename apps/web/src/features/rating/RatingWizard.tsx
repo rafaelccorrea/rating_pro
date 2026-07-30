@@ -31,6 +31,8 @@ import {
   type PersonType,
 } from '@rating-pro/shared';
 import { Button, ButtonLink, Card, Input, Select } from '@/components/ui';
+import { useAuth } from '@/features/auth/AuthProvider';
+import { useProfiles } from '@/features/panel/hooks';
 import { ApiRequestError } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { maskDate, maskDocument, maskPhone } from '@/lib/masks';
@@ -239,6 +241,7 @@ function SuccessCard({
 
 export function RatingWizard({ personType }: { personType: PersonType }) {
   const navigate = useNavigate();
+  const { isMaster } = useAuth();
   const isPJ = personType === 'pj';
   const labels = stepLabels(personType);
   const documents = useMemo(() => documentSlots(personType), [personType]);
@@ -251,6 +254,9 @@ export function RatingWizard({ personType }: { personType: PersonType }) {
   const [done, setDone] = useState<{ code: string; orderId: string; payment: PaymentView | null }>();
 
   const contract = useContractRating();
+
+  // Só master escolhe o dono do pedido; para revendedor a lista nem é buscada.
+  const resellers = useProfiles({ status: 'active', page: 1, pageSize: 200 }, isMaster);
 
   const set = (key: string, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -267,6 +273,8 @@ export function RatingWizard({ personType }: { personType: PersonType }) {
   /** Monta o payload no formato que a API espera. */
   const toPayload = () => ({
     personType,
+    // Revendedor não manda o campo: a API usa a própria conta como dono.
+    ...(isMaster && values.resellerId ? { resellerId: values.resellerId } : {}),
     name: values.legalName ?? '',
     document: values.document ?? '',
     birthDate: values.birthDate ?? '',
@@ -289,6 +297,7 @@ export function RatingWizard({ personType }: { personType: PersonType }) {
     };
 
     if (index === 0) {
+      if (isMaster) required('resellerId', 'Escolha o revendedor');
       required('legalName', isPJ ? 'Informe a razão social' : 'Informe o nome completo');
       required('document', isPJ ? 'Informe o CNPJ' : 'Informe o CPF');
 
@@ -456,6 +465,27 @@ export function RatingWizard({ personType }: { personType: PersonType }) {
         {/* ------------------------------------------------ 1. cadastro */}
         {step === 0 && (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {isMaster && (
+              <div className="sm:col-span-2">
+                <Select
+                  {...field('resellerId', 'Revendedor *')}
+                  hint={
+                    errors.resellerId
+                      ? undefined
+                      : 'O pedido entra na carteira dele, e a comissão sai da taxa do perfil'
+                  }
+                >
+                  <option value="">Selecione</option>
+                  {resellers.data?.items.map((reseller) => (
+                    <option key={reseller.id} value={reseller.id}>
+                      {reseller.fullName}
+                      {reseller.companyName ? ` — ${reseller.companyName}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
             <div className="sm:col-span-2">
               <Input {...field('legalName', isPJ ? 'Razão Social *' : 'Nome completo *')} />
             </div>

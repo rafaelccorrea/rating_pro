@@ -53,19 +53,16 @@ export class RatingRequestsService {
    * mesma empresa contratando de novo nao vira cadastro duplicado.
    */
   async create(user: AuthenticatedUser, input: RatingRequestInput) {
-    if (isMaster(user)) {
-      throw new ForbiddenException('Master não abre pedidos; use uma conta de revendedor');
-    }
-
+    const resellerId = await this.resolveReseller(user, input.resellerId);
     const price = this.priceFor(input.personType);
 
     return this.prisma.$transaction(async (tx) => {
       const client = await tx.client.upsert({
         where: {
-          resellerId_document: { resellerId: user.id, document: input.document },
+          resellerId_document: { resellerId, document: input.document },
         },
         create: {
-          resellerId: user.id,
+          resellerId,
           personType: input.personType,
           document: input.document,
           name: input.name,
@@ -91,7 +88,7 @@ export class RatingRequestsService {
 
       const order = await tx.ratingOrder.create({
         data: {
-          resellerId: user.id,
+          resellerId,
           clientId: client.id,
           status: 'draft',
           saleAmount: new Prisma.Decimal(price),
@@ -355,6 +352,43 @@ export class RatingRequestsService {
   }
 
   // --- internos -------------------------------------------------------------
+
+  /**
+   * De quem e o pedido.
+   *
+   * Revendedor abre sempre no proprio nome — aceitar `resellerId` dele seria
+   * deixar abrir pedido na carteira alheia. Master nao tem carteira, entao
+   * precisa dizer em nome de quem esta contratando: e desse vinculo que saem o
+   * isolamento por revendedor e a comissao (calculada por trigger sobre a taxa
+   * do perfil escolhido).
+   */
+  private async resolveReseller(
+    user: AuthenticatedUser,
+    requested: string | undefined,
+  ): Promise<string> {
+    if (!isMaster(user)) return user.id;
+
+    if (!requested) {
+      throw new BadRequestException(
+        'Escolha em nome de qual revendedor abrir o pedido',
+      );
+    }
+
+    const reseller = await this.prisma.profile.findUnique({
+      where: { id: requested },
+      select: { id: true, role: true, status: true },
+    });
+
+    if (!reseller || reseller.role !== 'reseller') {
+      throw new BadRequestException('Revendedor não encontrado');
+    }
+
+    if (reseller.status !== 'active') {
+      throw new BadRequestException('Revendedor inativo não pode receber pedidos');
+    }
+
+    return reseller.id;
+  }
 
   private priceFor(personType: PersonType): number {
     return personType === 'pj'
