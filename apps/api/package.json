@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "prebuild": "pnpm --filter @rating-pro/shared build",
+    "prebuild": "tsc -p ../../packages/shared/tsconfig.json",
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
