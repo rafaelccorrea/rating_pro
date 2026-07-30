@@ -1,4 +1,6 @@
 node_modules/
+# Bundle gerado por scripts/build-deploy.mjs
+deploy/
 dist/
 build/
 .next/

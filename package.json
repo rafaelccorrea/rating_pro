@@ -19,7 +19,8 @@
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff -f",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --local --schema public > packages/shared/src/database.types.ts"
+    "db:types": "supabase gen types typescript --local --schema public > packages/shared/src/database.types.ts",
+    "deploy:build": "pnpm build && node scripts/build-deploy.mjs"
   },
   "devDependencies": {
     "supabase": "^2.110.0",
