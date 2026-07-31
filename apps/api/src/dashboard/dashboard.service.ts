@@ -57,6 +57,9 @@ export class DashboardService {
       deliveredOrders: countOf('delivered'),
       rejectedOrders: countOf('rejected'),
       totalSales: deliveredTotals._sum.saleAmount?.toNumber() ?? 0,
+      // Acumulado vitalício: sem recorte de período e sem nada para abater,
+      // já que repasse de comissão não é registrado. Quem consome precisa
+      // rotular como "gerada", não como saldo a pagar.
       totalCommission: deliveredTotals._sum.commissionAmount?.toNumber() ?? 0,
       avgScore: scoreAvg._avg.score === null ? null : Math.round(scoreAvg._avg.score),
     };

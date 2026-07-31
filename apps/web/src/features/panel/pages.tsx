@@ -288,12 +288,23 @@ export function DashboardPage() {
             </Card>
 
             <div className="space-y-5 lg:col-span-5 xl:col-span-4">
+              {/*
+                "Acumulado", não "a repassar": o número soma a comissão de todo
+                pedido entregue desde sempre, e não existe registro de repasse
+                no schema para abater. Ler como dívida do mês erra a conta para
+                cima. Mesmo motivo do rótulo "comissão gerada" em /master/socios.
+              */}
               <Card className="bg-gradient-to-br from-brand-600 to-brand-800 text-white">
                 <p className="text-xs font-semibold tracking-wide text-brand-200 uppercase">
-                  {isMaster ? 'Comissões a repassar' : 'Sua comissão acumulada'}
+                  {isMaster ? 'Comissão gerada (acumulado)' : 'Sua comissão acumulada'}
                 </p>
                 <p className="mt-1 text-3xl font-semibold tabular-nums">
                   {formatBRL(data.totalCommission)}
+                </p>
+                <p className="mt-1.5 text-xs text-brand-200">
+                  {isMaster
+                    ? 'Todos os pedidos entregues desde o início; não desconta repasses já feitos.'
+                    : 'Todos os seus pedidos entregues desde o início; não desconta o que já foi pago.'}
                 </p>
 
                 <div className="mt-4 flex items-baseline justify-between border-t border-white/15 pt-4">

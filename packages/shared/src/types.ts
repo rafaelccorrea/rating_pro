@@ -145,6 +145,11 @@ export interface DashboardStats {
   deliveredOrders: number;
   rejectedOrders: number;
   totalSales: number;
+  /**
+   * Comissão acumulada de todos os pedidos entregues, sem recorte de período e
+   * sem abater repasse — não existe registro de pagamento de comissão no banco.
+   * Não é saldo devido; apresente como "gerada/acumulada", nunca "a repassar".
+   */
   totalCommission: number;
   avgScore: number | null;
   /** Presentes apenas para master. */
