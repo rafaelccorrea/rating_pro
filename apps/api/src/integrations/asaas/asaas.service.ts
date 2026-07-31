@@ -110,12 +110,18 @@ export class AsaasService {
     const orphan = await this.findChargeByExternalReference(payment.id);
     if (orphan) {
       this.logger.warn(`Adotei a cobrança ${orphan.id}, já existente no Asaas para ${payment.id}`);
-      return this.claim(payment, orphan);
+      // Sem rateio registrado: não sabemos com que config a órfã nasceu, e
+      // chutar a atual seria inventar histórico.
+      return this.claim(payment, orphan, null);
     }
 
     const customerId = await this.ensureCustomer(payment.order.reseller);
 
     const splits = this.config.splits;
+    const splitPayload = splits.map(({ walletId, percentualValue }) => ({
+      walletId,
+      percentualValue,
+    }));
     const created = await this.client.post<AsaasPaymentResponse>('/payments', {
       customer: customerId,
       billingType: BILLING_TYPE[payment.method],
@@ -124,10 +130,11 @@ export class AsaasService {
       description: `Rating ${payment.order.code}`,
       // Reconciliacao reserva do webhook, caso o asaas_payment_id se perca.
       externalReference: payment.id,
-      ...(splits.length > 0 ? { split: splits } : {}),
+      // Só walletId e percentual: o nome do sócio é coisa do nosso painel.
+      ...(splitPayload.length > 0 ? { split: splitPayload } : {}),
     });
 
-    const updated = await this.claim(payment, created);
+    const updated = await this.claim(payment, created, splitPayload);
 
     if (!updated) {
       // Outra requisicao concorrente ganhou a corrida e ja gravou a cobranca
@@ -161,6 +168,8 @@ export class AsaasService {
   private async claim(
     payment: OrderPayment,
     charge: AsaasPaymentResponse,
+    /** O que foi enviado como split; `null` quando a cobrança foi adotada. */
+    split: Array<{ walletId: string; percentualValue: number }> | null,
   ): Promise<OrderPayment | null> {
     // Cosmetico: se falhar, a fatura hospedada ainda mostra o QR.
     const pixPayload =
@@ -180,6 +189,14 @@ export class AsaasService {
         bankSlipUrl: charge.bankSlipUrl ?? null,
         pixPayload,
         dueDate: charge.dueDate ? new Date(charge.dueDate) : null,
+        // Estimativa do líquido; o webhook do pagamento reescreve com o real.
+        netAmount: charge.netValue ?? null,
+        asaasStatus: charge.status ?? null,
+        // Congela o rateio desta cobrança: mudar o .env depois não pode
+        // reescrever quanto cada sócio recebeu no passado. Lista vazia é
+        // informação, não ausência — significa "sem split, tudo na conta
+        // principal", diferente do `null` de quem nunca passou pelo gateway.
+        ...(split ? { split } : {}),
       },
     });
 
@@ -309,7 +326,15 @@ export class AsaasService {
     // `paidAt` e preenchido por trigger quando o status vira paid.
     await this.prisma.orderPayment.update({
       where: { id: payment.id },
-      data: { status: target, ...(asaasId ? { reference: asaasId } : {}) },
+      data: {
+        status: target,
+        ...(asaasId ? { reference: asaasId } : {}),
+        // Aqui o líquido deixa de ser estimativa: é o que o Asaas de fato
+        // repartiu entre as carteiras dos sócios.
+        ...(body.payment?.netValue != null ? { netAmount: body.payment.netValue } : {}),
+        // Distingue cartão aprovado (repasse futuro) de dinheiro liquidado.
+        ...(body.payment?.status ? { asaasStatus: body.payment.status } : {}),
+      },
     });
 
     this.logger.log(`Webhook ${event}: cobrança ${payment.id} -> ${target}`);

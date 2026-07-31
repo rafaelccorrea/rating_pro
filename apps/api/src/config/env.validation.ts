@@ -95,6 +95,12 @@ export const envSchema = z.object({
     }),
   /** Prazo de vencimento das cobrancas, em dias corridos a partir do pedido. */
   ASAAS_DUE_DAYS: z.coerce.number().int().min(1).max(60).default(3),
+  /**
+   * Nome do socio dono da conta Asaas que emite as cobrancas. E ele quem fica
+   * com o que o split nao distribui, e o painel dos socios precisa chama-lo
+   * por um nome.
+   */
+  ASAAS_MAIN_ACCOUNT_NAME: z.string().trim().min(1).default('Conta principal'),
 }).superRefine((env, ctx) => {
   if (env.ASAAS_API_KEY && !env.ASAAS_WEBHOOK_TOKEN) {
     ctx.addIssue({

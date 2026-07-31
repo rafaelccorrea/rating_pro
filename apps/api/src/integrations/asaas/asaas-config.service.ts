@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.validation';
-import { parseSplitWallets, type AsaasSplitEntry } from './asaas-split';
+import {
+  parseSplitWallets,
+  partnerShares,
+  type AsaasSplitEntry,
+  type PartnerShare,
+} from './asaas-split';
 
 /**
  * Leitura tipada da configuracao do Asaas. Tudo ja passou pela validacao do
@@ -37,5 +42,14 @@ export class AsaasConfigService {
   /** Split entre os socios (ex.: 70/30). Vazio = tudo fica na conta principal. */
   get splits(): AsaasSplitEntry[] {
     return parseSplitWallets(this.config.get('ASAAS_SPLIT_WALLETS', { infer: true }));
+  }
+
+  /**
+   * As fatias como o painel dos socios mostra: as carteiras listadas mais a
+   * sobra que fica na conta principal. Sem split configurado, resulta numa
+   * fatia so — a conta principal com 100%, que e o que de fato acontece.
+   */
+  get partners(): PartnerShare[] {
+    return partnerShares(this.splits, this.config.get('ASAAS_MAIN_ACCOUNT_NAME', { infer: true }));
   }
 }

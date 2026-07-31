@@ -13,6 +13,8 @@ import { AsaasService } from './asaas.service';
 @Module({
   controllers: [AsaasWebhookController],
   providers: [AsaasConfigService, AsaasClient, AsaasService],
-  exports: [AsaasService],
+  // O AsaasConfigService sai junto porque o painel dos sócios lê dele o rateio
+  // vigente e os nomes de cada um.
+  exports: [AsaasService, AsaasConfigService],
 })
 export class AsaasModule {}

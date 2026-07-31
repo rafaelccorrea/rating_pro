@@ -10,6 +10,7 @@ import type {
   LeadStatus,
   OrderStatus,
   Paginated,
+  PartnersOverview,
   UpdateProfileInput,
 } from '@rating-pro/shared';
 import { api, apiFetchBlob } from '@/lib/api';
@@ -31,6 +32,7 @@ export const queryKeys = {
   clients: (filters?: unknown) => ['clients', filters ?? {}] as const,
   profiles: (filters?: unknown) => ['profiles', filters ?? {}] as const,
   leads: (filters?: unknown) => ['leads', filters ?? {}] as const,
+  partners: (filters?: unknown) => ['partners', 'overview', filters ?? {}] as const,
 };
 
 // --- Dashboard --------------------------------------------------------------
@@ -39,6 +41,55 @@ export function useStats() {
   return useQuery({
     queryKey: queryKeys.stats,
     queryFn: () => api.get<DashboardStats>('/dashboard/stats'),
+  });
+}
+
+// --- Sócios -----------------------------------------------------------------
+
+export interface PartnersFilters {
+  from?: string;
+  to?: string;
+  months: number;
+}
+
+/**
+ * Painel de prestação de contas. `staleTime` alto de propósito: é tela de
+ * leitura, e o número não muda de minuto a minuto.
+ */
+export function usePartners(filters: PartnersFilters) {
+  return useQuery({
+    queryKey: queryKeys.partners(filters),
+    queryFn: () =>
+      api.get<PartnersOverview>('/partners/overview', {
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+        months: filters.months,
+      }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Baixa o extrato do período em CSV, passando pelo header de autorização. */
+export function usePartnersCsv() {
+  return useMutation({
+    mutationFn: async (filters: PartnersFilters) => {
+      const params = new URLSearchParams({ months: String(filters.months) });
+      if (filters.from) params.set('from', filters.from);
+      if (filters.to) params.set('to', filters.to);
+
+      const { blob } = await apiFetchBlob(`/partners/ledger.csv?${params.toString()}`);
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `extrato-socios-${filters.from ?? 'inicio'}-a-${filters.to ?? 'hoje'}.csv`;
+      link.rel = 'noopener';
+      document.body.append(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    },
   });
 }
 

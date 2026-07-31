@@ -13,6 +13,7 @@ import { HealthModule } from './health/health.module';
 import { AsaasModule } from './integrations/asaas/asaas.module';
 import { LeadsModule } from './leads/leads.module';
 import { OrdersModule } from './orders/orders.module';
+import { PartnersModule } from './partners/partners.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { RatingRequestsModule } from './rating-requests/rating-requests.module';
@@ -56,6 +57,7 @@ import { TrackingModule } from './tracking/tracking.module';
     DashboardModule,
     TrackingModule,
     AsaasModule,
+    PartnersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

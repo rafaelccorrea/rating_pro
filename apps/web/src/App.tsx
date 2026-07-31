@@ -52,6 +52,9 @@ const ResellersPage = lazy(() =>
 const LeadsPage = lazy(() =>
   import('@/features/master/pages').then((m) => ({ default: m.LeadsPage })),
 );
+const PartnersPage = lazy(() =>
+  import('@/features/partners/PartnersPage').then((m) => ({ default: m.PartnersPage })),
+);
 
 export function App() {
   return (
@@ -81,6 +84,7 @@ export function App() {
               <Route path="/master/emitir/:id" element={<IssueRatingPage />} />
               <Route path="/master/revendedores" element={<ResellersPage />} />
               <Route path="/master/leads" element={<LeadsPage />} />
+              <Route path="/master/socios" element={<PartnersPage />} />
             </Route>
           </Route>
         </Route>

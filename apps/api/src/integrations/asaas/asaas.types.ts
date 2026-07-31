@@ -14,6 +14,8 @@ export interface AsaasPaymentResponse {
   bankSlipUrl?: string | null;
   /** yyyy-mm-dd */
   dueDate?: string;
+  /** Bruto menos a taxa da cobranca. E sobre ele que o split incide. */
+  netValue?: number | null;
   /** Cobranca removida no painel; nao serve para adotar. */
   deleted?: boolean;
 }
@@ -51,6 +53,8 @@ export const asaasWebhookEventSchema = z.object({
       id: z.string().trim().min(1).max(120).optional().catch(undefined),
       status: z.string().trim().max(60).optional().catch(undefined),
       externalReference: z.string().trim().uuid().nullable().optional().catch(null),
+      /** Liquido real da cobranca; so aqui ele deixa de ser estimativa. */
+      netValue: z.number().nonnegative().nullable().optional().catch(null),
     })
     .optional()
     .catch(undefined),

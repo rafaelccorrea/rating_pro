@@ -284,9 +284,21 @@ model OrderPayment {
   /// PIX copia e cola. So para exibicao.
   pixPayload     String?   @map("pix_payload")
   dueDate        DateTime? @map("due_date") @db.Date
+  /// Rateio enviado ao Asaas: [{ walletId, percentualValue }]. Historico — o
+  /// painel dos socios reparte por ele, nao pela config atual.
+  split          Json?
+  /// Liquido do gateway (bruto menos a taxa da cobranca). E sobre ele que o
+  /// split incide; nulo quando a cobranca nao passou pelo Asaas.
+  netAmount      Decimal?  @map("net_amount") @db.Decimal(12, 2)
+  /// Status no Asaas. `CONFIRMED` e cartao aprovado com repasse futuro;
+  /// `RECEIVED` e dinheiro liquidado. Os dois viram `paid` aqui.
+  asaasStatus    String?   @map("asaas_status")
   note      String?
-  /// Preenchido pelo trigger quando o status vira `paid`.
+  /// Preenchido pelo trigger quando o status vira `paid`. Sobrevive ao
+  /// estorno: o mes em que o dinheiro entrou nao muda depois.
   paidAt    DateTime?     @map("paid_at") @db.Timestamptz(6)
+  /// Quando o estorno aconteceu, tambem pelo trigger.
+  refundedAt DateTime?    @map("refunded_at") @db.Timestamptz(6)
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

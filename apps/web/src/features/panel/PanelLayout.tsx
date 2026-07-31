@@ -11,6 +11,7 @@ import {
   Sun,
   UserCircle,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ const MASTER_NAV: NavItem[] = [
   { to: '/master', label: 'Fila de análise', icon: Gauge, end: true },
   { to: '/master/revendedores', label: 'Revendedores', icon: Users, end: false },
   { to: '/master/leads', label: 'Leads', icon: MessageSquare, end: false },
+  { to: '/master/socios', label: 'Sócios', icon: Wallet, end: false },
 ];
 
 const ACCOUNT_NAV: NavItem[] = [
