@@ -8,6 +8,8 @@ import {
   Menu,
   MessageSquare,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Sun,
   UserCircle,
   Users,
@@ -18,6 +20,7 @@ import {
 import { PROFILE_STATUS_LABEL } from '@rating-pro/shared';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useSidebar } from '@/hooks/useSidebar';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/cn';
 
@@ -57,18 +60,26 @@ function NavGroup({
   title,
   items,
   onNavigate,
+  collapsed = false,
 }: {
   title?: string;
   items: NavItem[];
   onNavigate: () => void;
+  /** Recolhida: só ícones, com o rótulo no title para quem passar o mouse. */
+  collapsed?: boolean;
 }) {
   return (
     <div>
-      {title && (
-        <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] text-ink-400 uppercase">
-          {title}
-        </p>
-      )}
+      {title &&
+        (collapsed ? (
+          // Um traço no lugar do título: preserva a separação entre grupos sem
+          // texto que não caberia.
+          <div className="mx-auto mb-2 h-px w-6 bg-ink-200 dark:bg-ink-800" aria-hidden />
+        ) : (
+          <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] text-ink-400 uppercase">
+            {title}
+          </p>
+        ))}
 
       <div className="space-y-0.5">
         {items.map(({ to, label, icon: Icon, end }) => (
@@ -77,9 +88,11 @@ function NavGroup({
             to={to}
             end={end}
             onClick={onNavigate}
+            title={collapsed ? label : undefined}
             className={({ isActive }) =>
               cn(
-                'group relative flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                'group relative flex items-center gap-2.5 rounded-xl py-2.5 text-sm font-medium transition-colors',
+                collapsed ? 'justify-center px-0' : 'px-3',
                 isActive
                   ? 'bg-white text-brand-700 shadow-soft dark:bg-ink-800 dark:text-brand-300'
                   : 'text-ink-600 hover:bg-white/70 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-ink-800/60 dark:hover:text-ink-100',
@@ -97,7 +110,8 @@ function NavGroup({
                   aria-hidden
                 />
                 <Icon className="size-4 shrink-0" aria-hidden />
-                {label}
+                {/* O rótulo sai do fluxo, mas continua no acessível. */}
+                <span className={cn(collapsed && 'sr-only')}>{label}</span>
               </>
             )}
           </NavLink>
@@ -110,10 +124,14 @@ function NavGroup({
 export function PanelLayout() {
   const { profile, isMaster, signOut } = useAuth();
   const { theme, toggle } = useTheme();
+  const { collapsed, toggle: toggleSidebar } = useSidebar();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const close = () => setSidebarOpen(false);
+  // O drawer do mobile é sempre completo: recolher só faz sentido onde a
+  // lateral divide espaço com o conteúdo.
+  const rail = collapsed && !sidebarOpen;
 
   const handleSignOut = () => {
     signOut();
@@ -211,16 +229,40 @@ export function PanelLayout() {
 
         <aside
           className={cn(
-            'shrink-0',
+            'shrink-0 transition-[width] duration-200 motion-reduce:transition-none',
             sidebarOpen
               ? 'fixed inset-y-0 top-16 left-0 z-30 w-64 overflow-y-auto border-r border-ink-200 bg-ink-50 p-4 lg:hidden dark:border-ink-800 dark:bg-ink-950'
-              : 'hidden w-56 lg:block xl:w-60',
+              : cn('hidden lg:block', rail ? 'w-14' : 'w-56 xl:w-60'),
           )}
         >
           <nav aria-label="Navegação do painel" className="space-y-6 lg:sticky lg:top-24">
-            <NavGroup title="Minha carteira" items={RESELLER_NAV} onNavigate={close} />
-            {isMaster && <NavGroup title="Operação" items={MASTER_NAV} onNavigate={close} />}
-            <NavGroup title="Conta" items={ACCOUNT_NAV} onNavigate={close} />
+            <NavGroup title="Minha carteira" items={RESELLER_NAV} onNavigate={close} collapsed={rail} />
+            {isMaster && (
+              <NavGroup title="Operação" items={MASTER_NAV} onNavigate={close} collapsed={rail} />
+            )}
+            <NavGroup title="Conta" items={ACCOUNT_NAV} onNavigate={close} collapsed={rail} />
+
+            {/* Só no desktop: no mobile quem fecha o drawer é o X do topo. */}
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+              aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+              aria-expanded={!collapsed}
+              className={cn(
+                'hidden w-full items-center gap-2.5 rounded-xl py-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-white/70 hover:text-ink-900 lg:flex dark:text-ink-400 dark:hover:bg-ink-800/60 dark:hover:text-ink-100',
+                rail ? 'justify-center px-0' : 'px-3',
+              )}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <PanelLeftClose className="size-4 shrink-0" aria-hidden />
+              )}
+              <span className={cn(rail && 'sr-only')}>
+                {collapsed ? 'Expandir menu' : 'Recolher menu'}
+              </span>
+            </button>
           </nav>
         </aside>
 

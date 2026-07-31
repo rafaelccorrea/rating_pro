@@ -27,6 +27,7 @@ export class PartnersController {
 
   @Get('ledger.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="extrato-socios.csv"')
   @ApiOperation({ summary: 'Extrato dos recebimentos do período, em CSV' })
   async ledgerCsv(@Query(zodPipe(partnersQuerySchema)) query: PartnersQuery) {
     const { from, to, rows, shares, mainName } = await this.partners.ledger(query);
@@ -72,5 +73,18 @@ export class PartnersController {
 /** Vírgula decimal e ponto e vírgula como separador: o Excel em pt-BR espera isso. */
 const money = (value: number): string => value.toFixed(2).replace('.', ',');
 
+/**
+ * Neutraliza fórmula antes de escapar.
+ *
+ * Nome de revendedor é texto que o próprio usuário cadastra; começando com
+ * `=`, `+`, `-` ou `@`, o Excel trata a célula como fórmula ao abrir o arquivo.
+ * A aspa simples à frente é a convenção que força texto sem sujar o que se lê
+ * na planilha.
+ */
+const defuse = (cell: string): string => (/^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell);
+
 const csvLine = (cells: string[]): string =>
-  cells.map((cell) => (/[;"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(';');
+  cells
+    .map(defuse)
+    .map((cell) => (/[;"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell))
+    .join(';');

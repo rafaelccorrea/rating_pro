@@ -86,6 +86,14 @@ const monthLabel = (month: string): string => {
   return `${MONTH_NAMES[Number(index) - 1] ?? month}/${year.slice(2)}`;
 };
 
+/**
+ * O que sobra para a sociedade: líquido menos a comissão gerada. Calculado num
+ * lugar só porque aparece no indicador e na cascata, e dois números com o mesmo
+ * rótulo divergindo por arredondamento seria pior que não mostrar nenhum.
+ */
+const societyResult = (data: PartnersOverview): number =>
+  Math.round((data.cash.net - data.commission) * 100) / 100;
+
 // --------------------------------------------------------------------- peças
 
 function Tile({
@@ -195,7 +203,7 @@ function SplitBanner({ data }: { data: PartnersOverview }) {
 
 function Cascade({ data }: { data: PartnersOverview }) {
   const { cash, commission, partners } = data;
-  const result = Math.round((cash.net - commission) * 100) / 100;
+  const result = societyResult(data);
 
   return (
     <Card className="flex flex-col">
@@ -383,38 +391,40 @@ function OverdueList({ data }: { data: PartnersOverview }) {
 }
 
 function Reconciliation({ data }: { data: PartnersOverview }) {
+  // Cada linha some quando zera: conciliação com cinco zeros é ruído, e o que
+  // sobra na tela é exatamente o que precisa de ação.
   const lines = [
     {
       label: 'Recebido fora do gateway',
       hint: 'baixa manual: não passou pelo rateio',
-      value: formatBRL(data.unattributed.amount),
+      amount: data.unattributed.amount,
       count: data.unattributed.count,
     },
     {
       label: 'Pedido vivo sem cobrança',
       hint: 'entregue ou em análise e nunca faturado',
-      value: formatBRL(data.receivables.uncharged.amount),
+      amount: data.receivables.uncharged.amount,
       count: data.receivables.uncharged.count,
     },
     {
       label: 'Cobrança que não chegou ao gateway',
       hint: 'pendente sem fatura no Asaas',
-      value: formatBRL(data.receivables.withoutGateway.amount),
+      amount: data.receivables.withoutGateway.amount,
       count: data.receivables.withoutGateway.count,
     },
     {
       label: 'Cartão em liquidação',
       hint: 'aprovado, repasse em ~30 dias',
-      value: formatBRL(data.cash.settling),
+      amount: data.cash.settling,
       count: null,
     },
     {
       label: 'Estornado no período',
       hint: 'sai do resultado, não do mês em que entrou',
-      value: formatBRL(data.cash.refunded),
+      amount: data.cash.refunded,
       count: null,
     },
-  ].filter((line) => line.count === null ? line.value !== formatBRL(0) : line.count > 0);
+  ].filter((line) => (line.count === null ? line.amount > 0 : line.count > 0));
 
   return (
     <Card>
@@ -441,7 +451,7 @@ function Reconciliation({ data }: { data: PartnersOverview }) {
                 <p className="text-xs text-ink-500">{line.hint}</p>
               </div>
               <dd className="shrink-0 text-sm font-medium tabular-nums text-ink-900 dark:text-ink-100">
-                {line.value}
+                {formatBRL(line.amount)}
               </dd>
             </div>
           ))}
@@ -610,7 +620,7 @@ export function PartnersPage() {
             />
             <Tile
               label="Resultado da sociedade"
-              value={formatBRL(Math.round((data.cash.net - data.commission) * 100) / 100)}
+              value={formatBRL(societyResult(data))}
               tone="positive"
               hint="líquido menos a comissão gerada"
             />

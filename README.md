@@ -90,8 +90,9 @@ Configuração:
 | `ASAAS_API_KEY`       | Chave de API (painel Asaas → Integrações). Vazio desliga a integração.      |
 | `ASAAS_ENV`           | `sandbox` (padrão) ou `production`.                                         |
 | `ASAAS_WEBHOOK_TOKEN` | Token conferido no header `asaas-access-token` do webhook. Obrigatório com a chave definida. |
-| `ASAAS_SPLIT_WALLETS` | `walletId:percentual` separado por vírgula, ex.: `abc:70,def:30`.           |
+| `ASAAS_SPLIT_WALLETS` | `walletId:percentual[:Nome]` separado por vírgula, ex.: `abc:70:Ana,def:30:Bruno`. |
 | `ASAAS_DUE_DAYS`      | Vencimento em dias corridos (padrão 3).                                     |
+| `ASAAS_MAIN_ACCOUNT_NAME` | Nome do sócio dono da conta que emite as cobranças (recebe a sobra do split). |
 
 Sobre o split: cada sócio pega o próprio `walletId` em *Menu → Integrações → Carteira* **na conta
 dele**. O percentual incide sobre o valor líquido da cobrança; o que não for listado fica na conta
@@ -100,7 +101,36 @@ que emitiu. Se a conta principal já é de um dos sócios, liste só a carteira 
 
 No painel do Asaas, cadastre o webhook apontando para `https://<sua-api>/api/webhooks/asaas`, com o
 mesmo token do `.env` e os eventos de cobrança (`PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`,
-`PAYMENT_REFUNDED`, `PAYMENT_DELETED` — os demais são ignorados com 200).
+`PAYMENT_REFUNDED`, `PAYMENT_DELETED`, `PAYMENT_RESTORED` — os demais são ignorados com 200).
+
+## Painel dos sócios (`/master/socios`)
+
+Prestação de contas entre os dois sócios, exclusiva de master (`GET /api/partners/overview` e
+`GET /api/partners/ledger.csv`). Duas regras governam todos os números da tela:
+
+- **Regime de caixa.** A base é `order_payments.paid_at`, nunca o valor dos pedidos entregues.
+  Pedido entregue cuja cobrança não foi paga é promessa, e promessa não se divide entre sócios.
+- **Valor devido, não creditado.** O rateio diz o que cabe a cada um; o crédito segue o prazo do
+  meio de pagamento (PIX ~D+1, cartão ~D+30).
+
+O que a tela mostra: recebido no período com variação sobre o anterior, a receber e vencido, a
+cascata `bruto → taxa do Asaas → líquido → comissão gerada → resultado`, a fatia de cada sócio, a
+série mensal de recebido versus prometido, as cobranças vencidas com link da fatura, o ranking de
+revendedores e uma seção de conciliação (dinheiro que entrou fora do gateway, pedido vivo sem
+cobrança, cobrança que nunca chegou ao Asaas, cartão em liquidação, estornos).
+
+Três decisões que garantem que o número bate com o extrato do Asaas:
+
+1. **O rateio sai do que ficou gravado em cada cobrança** (`order_payments.split`), nunca da
+   configuração atual — trocar 70/30 por 60/40 no `.env` não reescreve meses fechados. Cobrança que
+   não passou pelo gateway (baixa manual) não é atribuída a ninguém: aparece em "recebido fora do
+   gateway".
+2. **Reparte-se o líquido** (`net_amount`, o que o Asaas devolve em `netValue`), porque é sobre ele
+   que o split incide. Enquanto uma cobrança não tiver o líquido registrado, a linha da taxa mostra
+   "não registrada" em vez de zero — estimativa apresentada como fato destruiria a confiança na tela.
+3. **Arredonda-se por pagamento**, não sobre o total do período, e a comissão é rateada pela fração
+   paga do pedido (`commission_amount * amount / sale_amount`), já que um pedido pode ter mais de
+   uma cobrança paga.
 
 ## Autenticação
 
