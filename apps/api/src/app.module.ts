@@ -10,6 +10,7 @@ import { envFilePaths } from './config/env-files';
 import { validateEnv, type Env } from './config/env.validation';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
+import { AsaasModule } from './integrations/asaas/asaas.module';
 import { LeadsModule } from './leads/leads.module';
 import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -54,6 +55,7 @@ import { TrackingModule } from './tracking/tracking.module';
     LeadsModule,
     DashboardModule,
     TrackingModule,
+    AsaasModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

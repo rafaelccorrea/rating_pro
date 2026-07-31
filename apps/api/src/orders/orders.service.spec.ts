@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { OrderStatus } from '@rating-pro/shared';
 import type { AuthenticatedUser } from '../common/types';
+import type { AsaasService } from '../integrations/asaas/asaas.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from './orders.service';
 
@@ -39,7 +40,10 @@ function makeService(order: { resellerId: string; status: OrderStatus } | null) 
     },
   } as unknown as PrismaService;
 
-  return { service: new OrdersService(prisma), update };
+  const cancelCharge = jest.fn().mockResolvedValue(undefined);
+  const asaas = { tryCancelPendingCharge: cancelCharge } as unknown as AsaasService;
+
+  return { service: new OrdersService(prisma, asaas), update, cancelCharge };
 }
 
 describe('OrdersService.changeStatus', () => {
@@ -145,6 +149,30 @@ describe('OrdersService.changeStatus', () => {
     });
 
     expect('internalNotes' in result).toBe(true);
+  });
+
+  it('cancela a cobrança no Asaas quando o pedido é cancelado', async () => {
+    const { service, cancelCharge } = makeService({ resellerId: 'reseller-1', status: 'draft' });
+
+    await service.changeStatus(reseller, 'order-1', {
+      status: 'cancelled',
+      reason: '',
+      internalNotes: '',
+    });
+
+    expect(cancelCharge).toHaveBeenCalledWith('order-1');
+  });
+
+  it('não mexe na cobrança em transição que mantém o pedido vivo', async () => {
+    const { service, cancelCharge } = makeService({ resellerId: 'reseller-1', status: 'draft' });
+
+    await service.changeStatus(reseller, 'order-1', {
+      status: 'submitted',
+      reason: '',
+      internalNotes: '',
+    });
+
+    expect(cancelCharge).not.toHaveBeenCalled();
   });
 });
 

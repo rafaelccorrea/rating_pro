@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { AsaasModule } from '../integrations/asaas/asaas.module';
 import { StorageModule } from '../storage/storage.module';
 import { RatingRequestsController } from './rating-requests.controller';
 import { RatingRequestsService } from './rating-requests.service';
 
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, AsaasModule],
   controllers: [RatingRequestsController],
   providers: [RatingRequestsService],
 })

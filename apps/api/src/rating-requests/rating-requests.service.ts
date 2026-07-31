@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma, type OrderPayment } from '@prisma/client';
 import {
   ACCEPTED_DOCUMENT_MIME,
   documentSlots,
@@ -21,6 +21,7 @@ import { encryptSecret } from '../common/crypto';
 import { assertOwnership } from '../common/scope';
 import { isMaster, type AuthenticatedUser } from '../common/types';
 import type { Env } from '../config/env.validation';
+import { AsaasService } from '../integrations/asaas/asaas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DocumentStorageService } from '../storage/document-storage.service';
 
@@ -42,6 +43,7 @@ export class RatingRequestsService {
     private readonly prisma: PrismaService,
     private readonly storage: DocumentStorageService,
     private readonly config: ConfigService<Env, true>,
+    private readonly asaas: AsaasService,
   ) {}
 
   /**
@@ -56,7 +58,7 @@ export class RatingRequestsService {
     const resellerId = await this.resolveReseller(user, input.resellerId);
     const price = this.priceFor(input.personType);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const client = await tx.client.upsert({
         where: {
           resellerId_document: { resellerId, document: input.document },
@@ -118,14 +120,21 @@ export class RatingRequestsService {
 
       this.logger.log(`Contratação ${order.code} aberta por ${user.email} (${input.personType})`);
 
-      return {
-        orderId: order.id,
-        code: order.code,
-        personType: input.personType,
-        checklist: documentSlots(input.personType),
-        payment: this.publicPayment(payment),
-      };
+      return { order, payment };
     });
+
+    // Fora da transacao de proposito: chamada HTTP nao pode segurar lock de
+    // banco, e uma falha no gateway nao pode desfazer o pedido ja criado — a
+    // cobranca fica pendente e a proxima visita a tela de pagamento retenta.
+    const charged = await this.asaas.tryCreateCharge(result.payment.id);
+
+    return {
+      orderId: result.order.id,
+      code: result.order.code,
+      personType: input.personType,
+      checklist: documentSlots(input.personType),
+      payment: this.publicPayment(charged ?? result.payment),
+    };
   }
 
   /**
@@ -294,7 +303,7 @@ export class RatingRequestsService {
 
     return {
       order: updated,
-      payment: payment ? this.publicPayment(payment) : null,
+      payment: payment ? this.publicPayment(await this.withCharge(payment)) : null,
     };
   }
 
@@ -329,6 +338,14 @@ export class RatingRequestsService {
       },
     });
 
+    // Pagou por fora (ou a cobrança morreu aqui): a fatura no Asaas não pode
+    // continuar pagável, senão o cliente paga de novo e o webhook trata como
+    // reentrega — dinheiro a mais sem registro nenhum. Estorno não entra: a
+    // cobrança lá já está paga e o DELETE não se aplica.
+    if (input.status !== 'refunded') {
+      await this.asaas.tryCancelRemoteCharge(paymentId);
+    }
+
     this.logger.log(`Cobrança ${paymentId} -> ${input.status} por ${user.email}`);
 
     return this.publicPayment(updated);
@@ -348,7 +365,18 @@ export class RatingRequestsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return payment ? this.publicPayment(payment) : null;
+    return payment ? this.publicPayment(await this.withCharge(payment)) : null;
+  }
+
+  /**
+   * Garante a cobranca no Asaas de um pagamento pendente que ainda nao tem
+   * uma. E o caminho de retentativa: se o gateway falhou (ou o perfil estava
+   * sem CPF/CNPJ) na criacao do pedido, a proxima consulta resolve.
+   */
+  private async withCharge(payment: OrderPayment): Promise<OrderPayment> {
+    if (payment.status !== 'pending' || payment.asaasPaymentId) return payment;
+
+    return (await this.asaas.tryCreateCharge(payment.id)) ?? payment;
   }
 
   // --- internos -------------------------------------------------------------
@@ -436,17 +464,9 @@ export class RatingRequestsService {
     };
   }
 
-  private publicPayment(payment: {
-    id: string;
-    orderId: string;
-    method: 'pix' | 'card' | 'boleto';
-    status: string;
-    amount: Prisma.Decimal;
-    reference: string | null;
-    paidAt: Date | null;
-    createdAt: Date;
-  }) {
+  private publicPayment(payment: OrderPayment) {
     const pixKey = this.config.get('PIX_KEY', { infer: true });
+    const viaAsaas = Boolean(payment.asaasPaymentId);
 
     return {
       id: payment.id,
@@ -459,14 +479,27 @@ export class RatingRequestsService {
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
       /**
-       * Instrucao de pagamento montada aqui porque nao ha provedor integrado:
-       * o PIX sai como chave para copiar. Quando entrar um gateway, este campo
-       * passa a carregar o QR/URL que ele devolver.
+       * Com cobranca no Asaas, a instrucao e o que o gateway devolveu (fatura
+       * hospedada, PIX copia e cola, boleto). Sem gateway, cai no fluxo manual:
+       * chave PIX estatica do .env e baixa pelo master.
        */
-      instructions:
-        payment.method === 'pix' && pixKey
-          ? { type: 'pix' as const, pixKey }
-          : { type: payment.method, pixKey: null },
+      instructions: viaAsaas
+        ? {
+            type: payment.method,
+            pixKey: null,
+            invoiceUrl: payment.invoiceUrl,
+            pixPayload: payment.pixPayload,
+            bankSlipUrl: payment.bankSlipUrl,
+            dueDate: payment.dueDate ? payment.dueDate.toISOString().slice(0, 10) : null,
+          }
+        : {
+            type: payment.method,
+            pixKey: payment.method === 'pix' && pixKey ? pixKey : null,
+            invoiceUrl: null,
+            pixPayload: null,
+            bankSlipUrl: null,
+            dueDate: null,
+          },
     };
   }
 }

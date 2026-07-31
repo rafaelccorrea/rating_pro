@@ -65,6 +65,43 @@ React e a requisição no NestJS, e a mesma tabela de faixas define o score nos 
 - Um revendedor não consegue alterar o próprio `role`, `status` ou `commission_rate`.
 - RLS ativa em todas as tabelas: master vê tudo, revendedor só o que é seu, `anon` só insere lead.
 
+## Pagamentos (Asaas + split entre os sócios)
+
+A cobrança do fluxo de contratação pode nascer no [Asaas](https://www.asaas.com) — PIX, boleto ou
+cartão — com **split de recebimento entre os sócios** (ex.: 70% para um, 30% para o outro). Toda a
+integração é opcional: sem `ASAAS_API_KEY` no `.env`, vale o fluxo manual (chave `PIX_KEY` na tela +
+baixa pelo master).
+
+Como funciona com a integração ligada:
+
+1. Ao fechar a contratação, a API cria o *customer* (o revendedor, que precisa de CPF/CNPJ no
+   perfil) e a cobrança no Asaas, já com o split. A tela de pagamento mostra a fatura hospedada
+   ("Pagar agora"), o PIX copia e cola e o boleto.
+2. O webhook (`POST /api/webhooks/asaas`) recebe a confirmação e dá baixa na cobrança — a mesma
+   regra da baixa manual do master, com outro disparador.
+3. Pedido cancelado ou recusado cancela a cobrança pendente no gateway.
+4. Se o gateway estiver fora do ar (ou o perfil sem CPF/CNPJ) na criação, o pedido nasce mesmo
+   assim; a próxima visita à tela de pagamento tenta criar a cobrança de novo.
+
+Configuração:
+
+| Variável              | O que é                                                                    |
+| --------------------- | -------------------------------------------------------------------------- |
+| `ASAAS_API_KEY`       | Chave de API (painel Asaas → Integrações). Vazio desliga a integração.      |
+| `ASAAS_ENV`           | `sandbox` (padrão) ou `production`.                                         |
+| `ASAAS_WEBHOOK_TOKEN` | Token conferido no header `asaas-access-token` do webhook. Obrigatório com a chave definida. |
+| `ASAAS_SPLIT_WALLETS` | `walletId:percentual` separado por vírgula, ex.: `abc:70,def:30`.           |
+| `ASAAS_DUE_DAYS`      | Vencimento em dias corridos (padrão 3).                                     |
+
+Sobre o split: cada sócio pega o próprio `walletId` em *Menu → Integrações → Carteira* **na conta
+dele**. O percentual incide sobre o valor líquido da cobrança; o que não for listado fica na conta
+que emitiu. Se a conta principal já é de um dos sócios, liste só a carteira do outro (ex.:
+`carteira-do-outro:30`).
+
+No painel do Asaas, cadastre o webhook apontando para `https://<sua-api>/api/webhooks/asaas`, com o
+mesmo token do `.env` e os eventos de cobrança (`PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`,
+`PAYMENT_REFUNDED`, `PAYMENT_DELETED` — os demais são ignorados com 200).
+
 ## Autenticação
 
 Feita pela própria API, sem serviço externo:

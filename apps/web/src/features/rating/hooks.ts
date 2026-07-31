@@ -19,7 +19,18 @@ export interface PaymentView {
   reference: string | null;
   paidAt: string | null;
   createdAt: string;
-  instructions: { type: string; pixKey: string | null };
+  instructions: {
+    type: string;
+    /** Chave PIX estática do fluxo manual; nula quando a cobrança é do Asaas. */
+    pixKey: string | null;
+    /** Fatura hospedada no Asaas (QR do PIX, boleto e cartão numa página só). */
+    invoiceUrl: string | null;
+    /** PIX copia e cola devolvido pelo Asaas. */
+    pixPayload: string | null;
+    bankSlipUrl: string | null;
+    /** yyyy-mm-dd */
+    dueDate: string | null;
+  };
 }
 
 interface CreateResponse {

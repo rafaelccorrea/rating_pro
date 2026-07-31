@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -30,7 +30,7 @@ import {
   type PaymentMethod,
   type PersonType,
 } from '@rating-pro/shared';
-import { Button, ButtonLink, Card, Input, Select } from '@/components/ui';
+import { Button, Card, Input, Select } from '@/components/ui';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useProfiles } from '@/features/panel/hooks';
 import { ApiRequestError } from '@/lib/api';
@@ -187,6 +187,47 @@ function DocumentRow({
 
 // --------------------------------------------------------------- confirmação
 
+/** dd/mm/aaaa a partir do yyyy-mm-dd da API, sem passar por Date (fuso). */
+function formatDueDate(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Aparência de botão para links. Montada aqui, e não por override de className
+ * sobre o `ButtonLink`, porque o `shadow-soft` da base dele é token custom do
+ * tema: o tailwind-merge não o reconhece como conflitante com `shadow-none` e
+ * as duas classes sobreviveriam, deixando o botão secundário com a sombra do
+ * primário.
+ */
+const LINK_BUTTON = {
+  base: 'inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-medium transition-all',
+  primary:
+    'bg-brand-600 text-white shadow-soft hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-400',
+  outline:
+    'border border-ink-300 text-ink-800 hover:border-brand-400 hover:text-brand-700 dark:border-ink-700 dark:text-ink-100 dark:hover:border-brand-400 dark:hover:text-brand-300',
+} as const;
+
+const linkButtonClass = (outline: boolean) =>
+  cn(LINK_BUTTON.base, outline ? LINK_BUTTON.outline : LINK_BUTTON.primary);
+
+/** Âncora externa com cara de botão — o Link do router é só para rota interna. */
+function ExternalButtonLink({
+  href,
+  outline = false,
+  children,
+}: {
+  href: string;
+  outline?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className={linkButtonClass(outline)}>
+      {children}
+    </a>
+  );
+}
+
 function SuccessCard({
   code,
   orderId,
@@ -196,7 +237,17 @@ function SuccessCard({
   orderId: string;
   payment: PaymentView | null;
 }) {
-  const pixKey = payment?.instructions.pixKey;
+  const instructions = payment?.instructions;
+  const pixKey = instructions?.pixKey;
+
+  const copyPix = async (payload: string) => {
+    try {
+      await navigator.clipboard.writeText(payload);
+      toast.success('Código PIX copiado');
+    } catch {
+      toast.error('Não consegui copiar; selecione o código manualmente');
+    }
+  };
 
   return (
     <Card>
@@ -218,20 +269,63 @@ function SuccessCard({
             <span className="text-ink-500">Cobrança</span>
             <span className="font-medium text-ink-900 dark:text-ink-100">
               {payment.methodLabel} — {formatBRL(payment.amount)}
+              {instructions?.dueDate && (
+                <span className="font-normal text-ink-500">
+                  {' '}
+                  · vence em {formatDueDate(instructions.dueDate)}
+                </span>
+              )}
             </span>
           </div>
 
+          {instructions?.pixPayload && (
+            <div className="mt-3">
+              <p className="text-xs text-ink-500">PIX copia e cola</p>
+              <div className="mt-1 flex items-center gap-2">
+                {/* select-all + rolagem no lugar de truncate: se o clipboard
+                    falhar, a pessoa ainda consegue selecionar o código inteiro. */}
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-white px-2 py-1.5 font-mono text-xs whitespace-nowrap text-ink-700 select-all dark:bg-ink-900 dark:text-ink-200">
+                  {instructions.pixPayload}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyPix(instructions.pixPayload!)}
+                >
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          )}
+
           {pixKey && (
             <p className="mt-2 text-xs text-ink-600 dark:text-ink-300">
-              Chave PIX para pagamento: <span className="font-mono">{pixKey}</span>. A análise
-              começa assim que o pagamento for confirmado.
+              Chave PIX para pagamento: <span className="font-mono">{pixKey}</span>.
             </p>
           )}
+
+          <p className="mt-2 text-xs text-ink-600 dark:text-ink-300">
+            A análise começa assim que o pagamento for confirmado.
+          </p>
         </div>
       )}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <ButtonLink to={`/painel/pedidos/${orderId}`}>Ver o pedido</ButtonLink>
+        {instructions?.invoiceUrl && (
+          <ExternalButtonLink href={instructions.invoiceUrl}>Pagar agora</ExternalButtonLink>
+        )}
+        {instructions?.bankSlipUrl && (
+          <ExternalButtonLink href={instructions.bankSlipUrl} outline>
+            Abrir boleto
+          </ExternalButtonLink>
+        )}
+        <Link
+          to={`/painel/pedidos/${orderId}`}
+          className={linkButtonClass(Boolean(instructions?.invoiceUrl))}
+        >
+          Ver o pedido
+        </Link>
       </div>
     </Card>
   );

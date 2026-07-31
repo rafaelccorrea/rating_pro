@@ -19,6 +19,7 @@ import {
 import { paginate, skipTake } from '../common/pagination';
 import { assertOwnership, scopeByReseller } from '../common/scope';
 import { isMaster, type AuthenticatedUser } from '../common/types';
+import { AsaasService } from '../integrations/asaas/asaas.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Transições que um revendedor pode disparar. Master pode qualquer válida. */
@@ -41,7 +42,10 @@ type OrderWithRelations = Prisma.RatingOrderGetPayload<{ include: typeof orderIn
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly asaas: AsaasService,
+  ) {}
 
   /**
    * `internalNotes` é anotação da operação e nunca vai para o revendedor.
@@ -281,6 +285,12 @@ export class OrdersService {
       },
       include: orderInclude,
     });
+
+    // Pedido morto nao deixa cobranca viva no gateway. Best-effort: o proprio
+    // servico so loga em caso de falha, e a mudanca de status ja aconteceu.
+    if (input.status === 'cancelled' || input.status === 'rejected') {
+      await this.asaas.tryCancelPendingCharge(id);
+    }
 
     return this.sanitize(updated, user);
   }

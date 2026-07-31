@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseSplitWallets } from '../integrations/asaas/asaas-split';
 
 /**
  * Contrato de configuracao da API. Validado no boot para o processo morrer
@@ -61,6 +62,49 @@ export const envSchema = z.object({
 
   /** Chave PIX mostrada na etapa de pagamento. Vazio esconde a instrucao. */
   PIX_KEY: z.string().trim().default(''),
+
+  /**
+   * Chave de API do Asaas (Menu > Integracoes > Chave de API). Vazio desliga a
+   * integracao e a cobranca volta a ser manual (PIX_KEY + baixa pelo master).
+   */
+  ASAAS_API_KEY: z.string().trim().default(''),
+  /** sandbox usa https://api-sandbox.asaas.com; production, https://api.asaas.com. */
+  ASAAS_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  /**
+   * Token de autenticacao do webhook, conferido contra o header
+   * `asaas-access-token`. Defina o MESMO valor ao cadastrar o webhook no painel
+   * do Asaas. Obrigatorio quando a integracao esta ligada — sem ele o webhook
+   * recusaria tudo e nenhum pagamento seria confirmado.
+   */
+  ASAAS_WEBHOOK_TOKEN: z.string().trim().default(''),
+  /**
+   * Split de recebimento entre os socios: "walletId:percentual" separado por
+   * virgula (ex.: "abc:70,def:30" = 70% para um, 30% para o outro). O que nao
+   * for listado fica na conta que emitiu a cobranca. Ver asaas-split.ts.
+   */
+  ASAAS_SPLIT_WALLETS: z
+    .string()
+    .trim()
+    .default('')
+    .superRefine((value, ctx) => {
+      try {
+        parseSplitWallets(value);
+      } catch (error) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
+      }
+    }),
+  /** Prazo de vencimento das cobrancas, em dias corridos a partir do pedido. */
+  ASAAS_DUE_DAYS: z.coerce.number().int().min(1).max(60).default(3),
+}).superRefine((env, ctx) => {
+  if (env.ASAAS_API_KEY && !env.ASAAS_WEBHOOK_TOKEN) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ASAAS_WEBHOOK_TOKEN'],
+      message:
+        'ASAAS_WEBHOOK_TOKEN é obrigatório quando ASAAS_API_KEY está definida — ' +
+        'sem ele os webhooks do Asaas seriam recusados e nenhum pagamento seria confirmado',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
